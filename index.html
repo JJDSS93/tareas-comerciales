@@ -1974,9 +1974,8 @@ let noesEditId = null;
 
 async function loadNoes() {
   try {
-    const r = await sbFetch(`${SB_URL}/rest/v1/noes?order=retoma_date.asc`);
-    if (r.ok) noesList = await r.json();
-    else noesList = [];
+    noesList = await sbFetch('noes?order=retoma_date.asc');
+    if (!Array.isArray(noesList)) noesList = [];
   } catch(e) { noesList = []; }
 }
 
@@ -1988,33 +1987,31 @@ async function saveNoe() {
   const fecha_no   = document.getElementById('noe-fecha-no').value;
   const retoma_date= document.getElementById('noe-retoma').value;
   if (!empresa || !retoma_date) { showToast('Empresa y fecha de retoma son obligatorias','error'); return; }
-  const body = { empresa, contacto, motivo, desarrollo, fecha_no: fecha_no||null, retoma_date };
-  let r;
-  if (noesEditId) {
-    r = await sbFetch(`${SB_URL}/rest/v1/noes?id=eq.${noesEditId}`, 'PATCH', body);
-  } else {
-    r = await sbFetch(`${SB_URL}/rest/v1/noes`, 'POST', body);
-  }
-  if (r.ok) {
+  const body = JSON.stringify({ empresa, contacto, motivo, desarrollo, fecha_no: fecha_no||null, retoma_date });
+  try {
+    if (noesEditId) {
+      await sbFetch(`noes?id=eq.${noesEditId}`, {method:'PATCH', body, prefer:'return=minimal'});
+    } else {
+      await sbFetch('noes', {method:'POST', body});
+    }
     showToast(noesEditId ? 'Cliente actualizado' : 'Cliente añadido', 'success');
     closeModal('noe-modal');
     await loadNoes();
     renderNoes();
-  } else {
-    const err = await r.text();
-    console.error('saveNoe error:', err);
+  } catch(e) {
+    console.error('saveNoe error:', e);
     showToast('Error al guardar — revisa la consola','error');
   }
 }
 
 async function deleteNoe(id) {
   if (!confirm('¿Eliminar este registro?')) return;
-  const r = await sbFetch(`${SB_URL}/rest/v1/noes?id=eq.${id}`, 'DELETE');
-  if (r.ok) {
+  try {
+    await sbFetch(`noes?id=eq.${id}`, {method:'DELETE'});
     showToast('Eliminado','success');
     noesList = noesList.filter(n=>n.id!==id);
     renderNoes();
-  }
+  } catch(e) { showToast('Error al eliminar','error'); }
 }
 
 function openNewNoe() {
