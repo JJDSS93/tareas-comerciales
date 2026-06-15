@@ -8,11 +8,10 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; color: #1a2740; min-height: 100vh; }
   header { background: #0d2240; padding: 18px 32px; display: flex; align-items: center; gap: 12px; }
-  header img { height: 32px; }
   header span { color: #fff; font-size: 18px; font-weight: 600; }
   .container { max-width: 860px; margin: 32px auto; padding: 0 16px 60px; }
   .card { background: #fff; border-radius: 12px; padding: 28px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-  .card h2 { font-size: 15px; font-weight: 700; color: #0d2240; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+  .card h2 { font-size: 15px; font-weight: 700; color: #0d2240; margin-bottom: 18px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   label { font-size: 12px; color: #666; display: block; margin-bottom: 5px; font-weight: 500; }
   input, select, textarea { width: 100%; padding: 9px 12px; border: 1px solid #dde3ec; border-radius: 8px; font-size: 13.5px; color: #1a2740; background: #f8fafc; outline: none; transition: border .15s; }
@@ -20,16 +19,17 @@
   textarea { resize: vertical; min-height: 80px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { background: #f0f4f8; color: #666; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 8px 10px; text-align: left; }
-  td { padding: 6px 6px; }
+  td { padding: 5px 5px; }
   td input { padding: 7px 8px; font-size: 13px; }
   .btn-add { margin-top: 10px; padding: 6px 14px; background: #e8f0fb; border: 1px solid #1e6db5; border-radius: 7px; color: #1e6db5; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .btn-del { background: none; border: none; color: #cc3333; font-size: 18px; cursor: pointer; padding: 0 6px; line-height: 1; }
-  .btn-gen { width: 100%; padding: 16px; background: #0d2240; border: none; border-radius: 10px; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px; transition: background .15s; }
+  .btn-del { background: none; border: none; color: #cc3333; font-size: 18px; cursor: pointer; padding: 0 6px; }
+  .btn-gen { width: 100%; padding: 16px; background: #0d2240; border: none; border-radius: 10px; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 8px; }
   .btn-gen:hover { background: #1e3a5f; }
   .btn-gen:disabled { background: #aaa; cursor: not-allowed; }
   .status { text-align: center; margin-top: 12px; font-size: 13px; color: #666; min-height: 20px; }
   .status.ok { color: #2a7d4f; font-weight: 600; }
   .status.err { color: #cc3333; font-weight: 600; }
+  .plantilla-note { font-size: 12px; color: #888; margin-top: 6px; }
   @media(max-width:600px){ .grid2{ grid-template-columns:1fr; } }
 </style>
 </head>
@@ -41,6 +41,16 @@
 </header>
 
 <div class="container">
+
+  <!-- PLANTILLA -->
+  <div class="card">
+    <h2>📁 Plantilla PPTX</h2>
+    <div>
+      <label>Sube la plantilla de Emburse (.pptx) *</label>
+      <input id="plantilla" type="file" accept=".pptx"/>
+      <p class="plantilla-note">Usa la plantilla oficial con las slides 19-22 en blanco.</p>
+    </div>
+  </div>
 
   <!-- DATOS CLIENTE -->
   <div class="card">
@@ -98,7 +108,7 @@
   <!-- NOTAS -->
   <div class="card">
     <h2>📝 Condiciones y notas</h2>
-    <textarea id="notas" placeholder="Una condición por línea. Ej:&#10;Precios en USD. IVA no incluido.&#10;Vigencia de la propuesta: 30 días.">Precios en USD. IVA no incluido.
+    <textarea id="notas" placeholder="Una condición por línea.">Precios en USD. IVA no incluido.
 Vigencia de la propuesta: 30 días desde la fecha de emisión.
 Los precios no incluyen impuestos aplicables.</textarea>
   </div>
@@ -109,32 +119,29 @@ Los precios no incluyen impuestos aplicables.</textarea>
 </div>
 
 <script>
-// ── URL de tu Supabase Edge Function ──────────────────────────────────────
-const EDGE_URL = 'https://fwjqjrugqjbortbqfdbp.supabase.co/functions/v1/generar-propuesta';
-
-// ── Estado de filas ────────────────────────────────────────────────────────
+const SERVER_URL = 'https://web-production-5a5c4.up.railway.app';
 const state = { lic: [], setup: [], opc: [] };
 
 function addRow(type) {
   const tbody = document.getElementById(type + '-body');
   const tr = document.createElement('tr');
-  const id = Date.now();
+  const id = Date.now() + Math.random();
   if (type === 'lic') {
     tr.innerHTML = `
-      <td><input placeholder="Corporate" oninput="update('lic',${id},'nombre',this.value)"/></td>
-      <td><input type="number" placeholder="50" style="width:70px" oninput="update('lic',${id},'vol',this.value);calcTotal(this)"/></td>
-      <td><input type="number" placeholder="55" step="0.01" oninput="update('lic',${id},'precio',this.value);calcTotal(this)"/></td>
-      <td><input id="tot-${id}" readonly style="background:#f0f4f8;width:90px"/></td>
-      <td><button class="btn-del" onclick="delRow('${type}',${id},this)">×</button></td>`;
-    state.lic.push({ id, nombre:'', vol:'', precio:'' });
+      <td><input placeholder="Corporate" oninput="update('lic',${id},'nombre',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
+      <td><input type="number" placeholder="50" style="width:70px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('lic',${id},'vol',this.value);calcTotal(this)"/></td>
+      <td><input type="number" placeholder="55" step="0.01" style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('lic',${id},'precio',this.value);calcTotal(this)"/></td>
+      <td><input id="tot-${id}" readonly style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f0f4f8;font-size:13px"/></td>
+      <td><button class="btn-del" onclick="delRow('lic',${id},this)">×</button></td>`;
+    state.lic.push({id, nombre:'', vol:'', precio:''});
   } else {
     tr.innerHTML = `
-      <td><input placeholder="Setup inicial" oninput="update('${type}',${id},'servicio',this.value)"/></td>
-      <td><input placeholder="Descripción" oninput="update('${type}',${id},'descripcion',this.value)"/></td>
-      <td><input placeholder="Único" style="width:80px" oninput="update('${type}',${id},'tipo',this.value)"/></td>
-      <td><input type="number" placeholder="0" step="0.01" style="width:90px" oninput="update('${type}',${id},'precio',this.value)"/></td>
+      <td><input placeholder="${type==='setup'?'Setup inicial':'Emburse Book'}" oninput="update('${type}',${id},'servicio',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
+      <td><input placeholder="Descripción" oninput="update('${type}',${id},'descripcion',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
+      <td><input placeholder="${type==='setup'?'Único':'Anual'}" style="width:75px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('${type}',${id},'tipo',this.value)"/></td>
+      <td><input type="number" placeholder="0" step="0.01" style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('${type}',${id},'precio',this.value)"/></td>
       <td><button class="btn-del" onclick="delRow('${type}',${id},this)">×</button></td>`;
-    state[type].push({ id, servicio:'', descripcion:'', tipo:'', precio:'' });
+    state[type].push({id, servicio:'', descripcion:'', tipo:'', precio:''});
   }
   tbody.appendChild(tr);
 }
@@ -151,12 +158,10 @@ function delRow(type, id, btn) {
 
 function calcTotal(el) {
   const tr = el.closest('tr');
-  const inputs = tr.querySelectorAll('input[type=number]');
-  if (inputs.length >= 2) {
-    const vol = parseFloat(inputs[0].value) || 0;
-    const price = parseFloat(inputs[1].value) || 0;
-    const totEl = tr.querySelector('[id^="tot-"]');
-    if (totEl) totEl.value = (vol * price).toFixed(2);
+  const nums = tr.querySelectorAll('input[type=number]');
+  if (nums.length >= 2) {
+    const tot = tr.querySelector('[id^="tot-"]');
+    if (tot) tot.value = ((parseFloat(nums[0].value)||0) * (parseFloat(nums[1].value)||0)).toFixed(2);
   }
 }
 
@@ -167,6 +172,8 @@ function setStatus(msg, type='') {
 }
 
 async function generar() {
+  const plantillaFile = document.getElementById('plantilla').files[0];
+  if (!plantillaFile) { setStatus('⚠️ Sube la plantilla PPTX primero', 'err'); return; }
   const empresa = document.getElementById('empresa').value.trim();
   if (!empresa) { setStatus('⚠️ Indica el nombre de la empresa', 'err'); return; }
 
@@ -175,7 +182,9 @@ async function generar() {
   setStatus('⏳ Generando propuesta...');
 
   try {
-    const payload = {
+    const formData = new FormData();
+    formData.append('plantilla', plantillaFile);
+    formData.append('datos', JSON.stringify({
       empresa,
       fecha: document.getElementById('fecha').value,
       moneda: document.getElementById('moneda').value,
@@ -183,12 +192,11 @@ async function generar() {
       setup: state.setup.filter(r => r.servicio || r.precio),
       opcionales: state.opc.filter(r => r.servicio || r.precio),
       notas: document.getElementById('notas').value,
-    };
+    }));
 
-    const res = await fetch(EDGE_URL, {
+    const res = await fetch(SERVER_URL + '/generar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: formData,
     });
 
     if (!res.ok) {
@@ -216,8 +224,6 @@ async function generar() {
 addRow('lic');
 addRow('setup');
 addRow('opc');
-
-// Fecha de hoy por defecto
 document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
 </script>
 </body>
