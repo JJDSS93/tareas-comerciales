@@ -651,59 +651,6 @@ input[type=color]{padding:2px;height:36px;cursor:pointer}
   </div>
 </div>
 
-<!-- CONFIG MODAL -->
-<div class="modal-overlay" id="config-modal" onclick="closeModalOnOverlay(event,'config-modal')">
-  <div class="modal modal-sm">
-    <div class="modal-header">
-      <span class="modal-title">Configuración</span>
-      <button class="modal-close" onclick="closeModal('config-modal')">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="config-section">
-        <h3>🔐 Cambiar PIN</h3>
-        <div class="form-group mb-2">
-          <label>PIN actual</label>
-          <input type="password" id="cfg-pin-old" placeholder="4 dígitos" maxlength="4"/>
-        </div>
-        <div class="form-group mb-2">
-          <label>Nuevo PIN</label>
-          <input type="password" id="cfg-pin-new" placeholder="4 dígitos" maxlength="4"/>
-        </div>
-        <div class="form-group mb-2">
-          <label>Confirmar PIN</label>
-          <input type="password" id="cfg-pin-conf" placeholder="4 dígitos" maxlength="4"/>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="changePin()">Cambiar PIN</button>
-      </div>
-      <div class="config-section">
-        <h3>📨 Telegram</h3>
-        <div class="form-group mb-2">
-          <label>Bot Token</label>
-          <input type="text" id="cfg-tg-token" placeholder="123456:ABC..."/>
-        </div>
-        <div class="form-group mb-2">
-          <label>Chat ID</label>
-          <input type="text" id="cfg-tg-chat" placeholder="-100123456789"/>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="saveTelegramConfig()">Guardar Telegram</button>
-        <button class="btn btn-secondary btn-sm mt-2" onclick="testTelegram()">Probar envío</button>
-      </div>
-      <div class="config-section">
-        <h3>🔑 Supabase</h3>
-        <div class="form-group mb-2">
-          <label>URL del proyecto</label>
-          <input type="text" id="cfg-sb-url" placeholder="https://xxxxx.supabase.co"/>
-        </div>
-        <div class="form-group mb-2">
-          <label>Anon Key</label>
-          <input type="text" id="cfg-sb-key" placeholder="eyJ..."/>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="saveSupabaseConfig()">Guardar y reconectar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 // ═══════════════════════════════════════════════════
 // CONFIG & STATE
@@ -1294,32 +1241,73 @@ function renderSearch() {
 // CONFIG VIEW
 // ═══════════════════════════════════════════════════
 function renderConfig() {
-  const content=document.getElementById('content');
-  content.innerHTML=`
+  const content = document.getElementById('content');
+  content.innerHTML = `
     <div class="card" style="max-width:560px">
       <div class="config-section">
+        <h3>👤 Mi cuenta — ${esc(currentUserName||'')}</h3>
+        <div class="form-group mb-2"><label>Nuevo PIN</label><input type="password" id="cfg-pin-new" placeholder="4 dígitos" maxlength="4"/></div>
+        <div class="form-group mb-2"><label>Confirmar PIN</label><input type="password" id="cfg-pin-conf" placeholder="4 dígitos" maxlength="4"/></div>
+        <button class="btn btn-primary btn-sm" onclick="changePin()">Cambiar mi PIN</button>
+      </div>
+      <div class="config-section">
+        <h3>👥 Usuarios</h3>
+        <div id="usuarios-list" style="margin-bottom:12px">Cargando...</div>
+        <button class="btn btn-primary btn-sm" onclick="openNuevoUsuario()">＋ Nuevo usuario</button>
+      </div>
+      <div class="config-section">
         <h3>🔑 Supabase</h3>
-        <div class="form-group mb-2"><label>URL del proyecto</label><input type="text" id="cfg-sb-url" value="${SB_URL}" placeholder="https://xxxxx.supabase.co"/></div>
-        <div class="form-group mb-2"><label>Anon Key</label><input type="text" id="cfg-sb-key" value="${SB_KEY}" placeholder="eyJ..."/></div>
+        <div class="form-group mb-2"><label>URL</label><input type="text" id="cfg-sb-url" value="${SB_URL}"/></div>
+        <div class="form-group mb-2"><label>Anon Key</label><input type="text" id="cfg-sb-key" value="${SB_KEY}"/></div>
         <button class="btn btn-primary btn-sm" onclick="saveSupabaseConfig()">Guardar y reconectar</button>
       </div>
       <div class="config-section">
-        <h3>🔐 Cambiar PIN</h3>
-        <div class="form-group mb-2"><label>PIN actual</label><input type="password" id="cfg-pin-old" placeholder="4 dígitos" maxlength="4"/></div>
-        <div class="form-group mb-2"><label>Nuevo PIN</label><input type="password" id="cfg-pin-new" placeholder="4 dígitos" maxlength="4"/></div>
-        <div class="form-group mb-2"><label>Confirmar</label><input type="password" id="cfg-pin-conf" placeholder="4 dígitos" maxlength="4"/></div>
-        <button class="btn btn-primary btn-sm" onclick="changePin()">Cambiar PIN</button>
-      </div>
-      <div class="config-section">
         <h3>📨 Telegram</h3>
-        <div class="form-group mb-2"><label>Bot Token</label><input type="text" id="cfg-tg-token" value="${state.config.telegram_token||''}" placeholder="123456:ABC..."/></div>
-        <div class="form-group mb-2"><label>Chat ID</label><input type="text" id="cfg-tg-chat" value="${state.config.telegram_chat_id||''}" placeholder="-100123456789"/></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="saveTelegramConfig()">Guardar</button>
-          <button class="btn btn-secondary btn-sm" onclick="testTelegram()">Probar envío</button>
-        </div>
+        <div class="form-group mb-2"><label>Bot Token</label><input type="text" id="cfg-tg-token" value="${state.config.telegram_token||''}"/></div>
+        <div class="form-group mb-2"><label>Chat ID</label><input type="text" id="cfg-tg-chat" value="${state.config.telegram_chat_id||''}"/></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" onclick="saveTelegramConfig()">Guardar</button><button class="btn btn-secondary btn-sm" onclick="testTelegram()">Probar</button></div>
       </div>
     </div>`;
+  loadUsuariosList();
+}
+
+async function loadUsuariosList() {
+  try {
+    const usuarios = await sbFetch('usuarios?select=*&order=nombre');
+    const el = document.getElementById('usuarios-list');
+    if (!el) return;
+    el.innerHTML = (usuarios||[]).map(u => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:13px;font-weight:500">${esc(u.nombre)}</span>
+        <span style="font-size:11px;color:var(--text3)">${u.id}</span>
+        ${u.id !== currentUserId
+          ? `<button onclick="deleteUsuario('${u.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;padding:3px 6px;border-radius:6px">🗑️</button>`
+          : '<span style="font-size:11px;color:var(--accent)">Tú</span>'}
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function openNuevoUsuario() {
+  const nombre = prompt('Nombre del nuevo usuario:');
+  if (!nombre) return;
+  const pin = prompt('PIN (4 dígitos):');
+  if (!pin || !/^\d{4}$/.test(pin)) { showToast('PIN inválido','error'); return; }
+  const id = nombre.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  const pin_hash = await simpleHash(pin);
+  try {
+    await sbFetch('usuarios', {method:'POST', body:JSON.stringify({id, nombre, pin_hash})});
+    showToast('Usuario creado','success');
+    loadUsuariosList();
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+async function deleteUsuario(id) {
+  if (!confirm('¿Eliminar este usuario?')) return;
+  try {
+    await sbFetch(`usuarios?id=eq.${id}`, {method:'DELETE'});
+    showToast('Usuario eliminado','success');
+    loadUsuariosList();
+  } catch(e) { showToast('Error: '+e.message,'error'); }
 }
 
 async function saveSupabaseConfig() {
@@ -1334,22 +1322,18 @@ async function saveSupabaseConfig() {
 }
 
 async function changePin() {
-  const old=document.getElementById('cfg-pin-old')?.value;
-  const nw=document.getElementById('cfg-pin-new')?.value;
-  const conf=document.getElementById('cfg-pin-conf')?.value;
-  if(!old||!nw||!conf){showToast('Completa todos los campos','error');return}
-  if(nw!==conf){showToast('Los PINs nuevos no coinciden','error');return}
-  if(!/^\d{4}$/.test(nw)){showToast('El PIN debe ser de 4 dígitos','error');return}
-  const oldHash=await simpleHash(old);
-  const stored=localStorage.getItem('pin_hash')||await simpleHash('1234');
-  if(oldHash!==stored){showToast('PIN actual incorrecto','error');return}
-  const newHash=await simpleHash(nw);
-  localStorage.setItem('pin_hash',newHash);
-  try{ await sbFetch('app_config?key=eq.pin_hash',{method:'PATCH',body:JSON.stringify({value:newHash}),prefer:'return=minimal'}); }catch(e){}
-  showToast('PIN actualizado correctamente','success');
-  document.getElementById('cfg-pin-old').value='';
-  document.getElementById('cfg-pin-new').value='';
-  document.getElementById('cfg-pin-conf').value='';
+  const nw   = document.getElementById('cfg-pin-new')?.value;
+  const conf = document.getElementById('cfg-pin-conf')?.value;
+  if (!nw || !conf) { showToast('Completa los campos','error'); return; }
+  if (nw !== conf)  { showToast('Los PINs no coinciden','error'); return; }
+  if (!/^\d{4}$/.test(nw)) { showToast('El PIN debe ser de 4 dígitos','error'); return; }
+  const newHash = await simpleHash(nw);
+  try {
+    await sbFetch(`usuarios?id=eq.${currentUserId}`, {method:'PATCH', body:JSON.stringify({pin_hash:newHash}), prefer:'return=minimal'});
+    showToast('PIN actualizado','success');
+    document.getElementById('cfg-pin-new').value  = '';
+    document.getElementById('cfg-pin-conf').value = '';
+  } catch(e) { showToast('Error: '+e.message,'error'); }
 }
 
 async function saveTelegramConfig() {
