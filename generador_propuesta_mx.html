@@ -36,8 +36,6 @@
   .logo-preview-wrap { margin-top: 10px; display: none; text-align: center; }
   .logo-preview-wrap img { max-height: 80px; max-width: 200px; border-radius: 6px; border: 1px solid #dde3ec; padding: 6px; background: #f8fafc; }
   .logo-preview-wrap span { display: block; font-size: 11px; color: #888; margin-top: 4px; }
-
-  /* Resumen de inversión */
   .resumen-card { background: #0d2240; border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(13,34,64,.25); display: none; }
   .resumen-card h2 { color: #fff; font-size: 15px; font-weight: 700; margin-bottom: 16px; }
   .resumen-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; }
@@ -49,7 +47,6 @@
   .resumen-amount { color: #fff; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .resumen-row:nth-child(4) .resumen-label { color: #cce0ff; }
   .resumen-row:nth-child(4) .resumen-label strong { color: #fff; }
-
   @media(max-width:600px){ .grid2{ grid-template-columns:1fr; } }
 </style>
 </head>
@@ -62,7 +59,6 @@
 
 <div class="container">
 
-  <!-- PLANTILLA -->
   <div class="card">
     <h2>📁 Plantilla PPTX</h2>
     <div>
@@ -72,7 +68,6 @@
     </div>
   </div>
 
-  <!-- DATOS CLIENTE -->
   <div class="card">
     <h2>📋 Datos del cliente</h2>
     <div class="grid2">
@@ -104,7 +99,6 @@
     </div>
   </div>
 
-  <!-- LICENCIAS -->
   <div class="card">
     <h2>🔑 Licencias</h2>
     <table>
@@ -118,7 +112,6 @@
     </div>
   </div>
 
-  <!-- SETUP -->
   <div class="card">
     <h2>⚙️ Setup &amp; Onboarding</h2>
     <table>
@@ -132,7 +125,6 @@
     </div>
   </div>
 
-  <!-- OPCIONALES -->
   <div class="card">
     <h2>➕ Servicios Opcionales</h2>
     <table>
@@ -146,7 +138,6 @@
     </div>
   </div>
 
-  <!-- NOTAS -->
   <div class="card">
     <h2>📝 Condiciones y notas</h2>
     <textarea id="notas" placeholder="Una condición por línea.">Precios en USD. IVA no incluido.
@@ -154,19 +145,18 @@ Vigencia de la propuesta: 30 días desde la fecha de emisión.
 Los precios no incluyen impuestos aplicables.</textarea>
   </div>
 
-  <!-- RESUMEN DE INVERSIÓN -->
   <div class="resumen-card" id="resumen-card">
     <h2>📊 Resumen de inversión</h2>
     <div class="resumen-row">
-      <div class="resumen-label"><strong>Escenario 1 — Base</strong>Licencias únicamente</div>
+      <div class="resumen-label"><strong>Pago anual recurrente</strong>Licencias únicamente</div>
       <div class="resumen-amount" id="res-1">—</div>
     </div>
     <div class="resumen-row">
-      <div class="resumen-label"><strong>Escenario 2 — Completo</strong>Licencias + Setup & Onboarding</div>
+      <div class="resumen-label"><strong>Pago anual más servicios (sólo primer año)</strong>Licencias + Setup & Onboarding</div>
       <div class="resumen-amount" id="res-2">—</div>
     </div>
     <div class="resumen-row">
-      <div class="resumen-label"><strong>Escenario 3 — Premium</strong>Licencias + Setup + Servicios Opcionales</div>
+      <div class="resumen-label"><strong>Pago anual más servicios más opcionales</strong>Licencias + Setup + Servicios Opcionales</div>
       <div class="resumen-amount" id="res-3">—</div>
     </div>
   </div>
@@ -276,10 +266,8 @@ async function generar() {
   try {
     const formData = new FormData();
     formData.append('plantilla', plantillaFile);
-
     const logoFile = document.getElementById('logo').files[0];
     if (logoFile) formData.append('logo', logoFile);
-
     formData.append('datos', JSON.stringify({
       empresa,
       fecha: document.getElementById('fecha').value,
