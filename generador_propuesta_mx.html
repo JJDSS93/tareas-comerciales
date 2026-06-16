@@ -33,6 +33,9 @@
   .status.ok { color: #2a7d4f; font-weight: 600; }
   .status.err { color: #cc3333; font-weight: 600; }
   .plantilla-note { font-size: 12px; color: #888; margin-top: 6px; }
+  .logo-preview-wrap { margin-top: 10px; display: none; text-align: center; }
+  .logo-preview-wrap img { max-height: 80px; max-width: 200px; border-radius: 6px; border: 1px solid #dde3ec; padding: 6px; background: #f8fafc; }
+  .logo-preview-wrap span { display: block; font-size: 11px; color: #888; margin-top: 4px; }
 
   /* Resumen de inversión */
   .resumen-card { background: #0d2240; border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(13,34,64,.25); display: none; }
@@ -89,6 +92,14 @@
           <option value="COP">COP — Peso colombiano</option>
           <option value="EUR">EUR — Euro</option>
         </select>
+      </div>
+      <div>
+        <label>Logo del cliente (PNG o JPG)</label>
+        <input id="logo" type="file" accept="image/png,image/jpeg" onchange="previewLogo(this)"/>
+        <div class="logo-preview-wrap" id="logo-preview-wrap">
+          <img id="logo-preview" src="" alt="Vista previa"/>
+          <span>Se insertará centrado en la portada (5×5 cm)</span>
+        </div>
       </div>
     </div>
   </div>
@@ -169,6 +180,18 @@ Los precios no incluyen impuestos aplicables.</textarea>
 const SERVER_URL = 'https://web-production-5a5c4.up.railway.app';
 const state = { lic: [], setup: [], opc: [] };
 
+function previewLogo(input) {
+  const wrap = document.getElementById('logo-preview-wrap');
+  const img  = document.getElementById('logo-preview');
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; wrap.style.display = 'block'; };
+    reader.readAsDataURL(input.files[0]);
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
 function fmt(n, moneda) {
   const sym = ['USD','MXN','COP'].includes(moneda) ? '$' : '€';
   return `${sym}${parseFloat(n).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2})} ${moneda}`;
@@ -176,18 +199,15 @@ function fmt(n, moneda) {
 
 function recalc() {
   const moneda = document.getElementById('moneda').value;
-  const licTotal  = state.lic.reduce((s,r)  => s + (parseFloat(r.vol)||0)*(parseFloat(r.precio)||0), 0);
-  const setupTotal= state.setup.reduce((s,r) => s + (parseFloat(r.precio)||0), 0);
-  const opcTotal  = state.opc.reduce((s,r)  => s + (parseFloat(r.precio)||0), 0);
-  const total1 = licTotal;
-  const total2 = licTotal + setupTotal;
-  const total3 = licTotal + setupTotal + opcTotal;
+  const licTotal   = state.lic.reduce((s,r)  => s + (parseFloat(r.vol)||0)*(parseFloat(r.precio)||0), 0);
+  const setupTotal = state.setup.reduce((s,r) => s + (parseFloat(r.precio)||0), 0);
+  const opcTotal   = state.opc.reduce((s,r)  => s + (parseFloat(r.precio)||0), 0);
   const card = document.getElementById('resumen-card');
-  if (total1 > 0 || total2 > 0 || total3 > 0) {
+  if (licTotal > 0 || setupTotal > 0 || opcTotal > 0) {
     card.style.display = 'block';
-    document.getElementById('res-1').textContent = fmt(total1, moneda);
-    document.getElementById('res-2').textContent = fmt(total2, moneda);
-    document.getElementById('res-3').textContent = fmt(total3, moneda);
+    document.getElementById('res-1').textContent = fmt(licTotal, moneda);
+    document.getElementById('res-2').textContent = fmt(licTotal + setupTotal, moneda);
+    document.getElementById('res-3').textContent = fmt(licTotal + setupTotal + opcTotal, moneda);
   } else {
     card.style.display = 'none';
   }
@@ -256,6 +276,10 @@ async function generar() {
   try {
     const formData = new FormData();
     formData.append('plantilla', plantillaFile);
+
+    const logoFile = document.getElementById('logo').files[0];
+    if (logoFile) formData.append('logo', logoFile);
+
     formData.append('datos', JSON.stringify({
       empresa,
       fecha: document.getElementById('fecha').value,
