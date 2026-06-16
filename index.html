@@ -434,6 +434,7 @@ input[type=color]{padding:2px;height:36px;cursor:pointer}
     <div class="nav-item" onclick="navigate('week')"><span class="nav-icon">📆</span>Vista Semana</div>
     <div class="nav-item" onclick="navigate('noes')"><span class="nav-icon">❌</span>Clientes No</div>
     <div class="nav-item" onclick="navigate('meeting-notes')"><span class="nav-icon">📝</span>Notas de Reunión</div>
+    <div class="nav-item" onclick="navigate('propuestas')"><span class="nav-icon">📄</span>Propuestas</div>
 
     <div class="projects-header">
       <span>Proyectos</span>
@@ -828,6 +829,7 @@ async function initApp() {
   await loadAll();
   await loadNoes();
   await loadMeetingNotes();
+  await loadPropuestas();
   startNotifChecker();
   checkNotifications();
 }
@@ -901,6 +903,7 @@ function navigate(view, projectId=null) {
   else if (view === 'week') document.querySelectorAll('.nav-item')[3].classList.add('active');
   else if (view === 'noes') document.querySelectorAll('.nav-item')[4].classList.add('active');
   else if (view === 'meeting-notes') document.querySelectorAll('.nav-item')[5].classList.add('active');
+  else if (view === 'propuestas') document.querySelectorAll('.nav-item')[6].classList.add('active');  
   else if (view === 'project' && projectId) {
     document.querySelectorAll('.project-item').forEach(el => {
       if (el.dataset.id === projectId) el.classList.add('active');
@@ -925,6 +928,7 @@ function renderView() {
   else if (v==='config') renderConfig();
   else if (v==='noes') renderNoes();
   else if (v==='meeting-notes') renderMeetingNotes();
+  else if (v==='propuestas') renderPropuestas();
 }
 
 // ═══════════════════════════════════════════════════
@@ -1945,6 +1949,180 @@ function goToTaskFilter(filter) {
   if(!localStorage.getItem('pin_hash')) localStorage.setItem('pin_hash', await simpleHash('1234'));
 })();
 </script>
+
+<!-- PROPUESTAS DETAIL MODAL -->
+<div class="modal-overlay" id="prop-detail-modal" onclick="closeModalOnOverlay(event,'prop-detail-modal')">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <span class="modal-title" id="prop-detail-title"></span>
+      <button class="modal-close" onclick="closeModal('prop-detail-modal')">×</button>
+    </div>
+    <div class="modal-body" id="prop-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('prop-detail-modal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// // ═══════════════════════════════════════════════════
+// PROPUESTAS
+// ═══════════════════════════════════════════════════
+
+let propuestasList = [];
+let propuestasFiltro = '';
+
+async function loadPropuestas() {
+  try {
+    const data = await sbFetch('propuestas?order=created_at.desc');
+    propuestasList = Array.isArray(data) ? data : [];
+  } catch(e) { propuestasList = []; }
+}
+
+async function deletePropuesta(id) {
+  if (!confirm('¿Eliminar esta propuesta?')) return;
+  try {
+    await sbFetch(`propuestas?id=eq.${id}`, {method:'DELETE'});
+    propuestasList = propuestasList.filter(p => p.id !== id);
+    showToast('Propuesta eliminada','success');
+    renderPropuestas();
+  } catch(e) { showToast('Error al eliminar','error'); }
+}
+
+function openDetallePropuesta(p) {
+  const sym = ['USD','MXN','COP'].includes(p.moneda) ? '$' : '€';
+  const fmt = n => `${sym}${parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})} ${p.moneda}`;
+
+  const licencias  = Array.isArray(p.licencias)  ? p.licencias  : [];
+  const setup      = Array.isArray(p.setup)       ? p.setup      : [];
+  const opcionales = Array.isArray(p.opcionales)  ? p.opcionales : [];
+
+  const licRows = licencias.length
+    ? licencias.map(r=>`<tr><td>${esc(r.nombre||'')}</td><td>${esc(String(r.vol||''))}</td><td>${r.precio?fmt(r.precio):''}</td><td>${(r.vol&&r.precio)?fmt(parseFloat(r.vol)*parseFloat(r.precio)):''}</td></tr>`).join('')
+    : `<tr><td colspan="4" style="color:var(--text3);text-align:center">Sin licencias</td></tr>`;
+
+  const setupRows = setup.length
+    ? setup.map(r=>`<tr><td>${esc(r.servicio||'')}</td><td>${esc(r.descripcion||'')}</td><td>${esc(r.tipo||'')}</td><td>${r.precio?fmt(r.precio):''}</td></tr>`).join('')
+    : `<tr><td colspan="4" style="color:var(--text3);text-align:center">Sin servicios</td></tr>`;
+
+  const opcRows = opcionales.length
+    ? opcionales.map(r=>`<tr><td>${esc(r.servicio||'')}</td><td>${esc(r.descripcion||'')}</td><td>${esc(r.tipo||'')}</td><td>${r.precio?fmt(r.precio):''}</td></tr>`).join('')
+    : `<tr><td colspan="4" style="color:var(--text3);text-align:center">Sin opcionales</td></tr>`;
+
+  const thStyle = 'background:var(--surface3);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;text-align:left';
+  const tdStyle = 'padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px';
+
+  document.getElementById('prop-detail-title').textContent = `📄 ${p.empresa}`;
+  document.getElementById('prop-detail-body').innerHTML = `
+    <div style="display:flex;gap:20px;margin-bottom:20px;flex-wrap:wrap">
+      <div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Fecha</span><div style="font-size:14px;font-weight:600;margin-top:2px">${fmtDate(p.fecha)||'—'}</div></div>
+      <div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Moneda</span><div style="font-size:14px;font-weight:600;margin-top:2px">${esc(p.moneda)}</div></div>
+      <div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Generada el</span><div style="font-size:14px;font-weight:600;margin-top:2px">${fmtDateTime(p.created_at)}</div></div>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">🔑 Licencias</div>
+      <table style="width:100%;border-collapse:collapse;background:var(--surface2);border-radius:8px;overflow:hidden">
+        <thead><tr><th style="${thStyle}">Producto</th><th style="${thStyle}">Volumen</th><th style="${thStyle}">Precio unit.</th><th style="${thStyle}">Total</th></tr></thead>
+        <tbody>${licRows}</tbody>
+      </table>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">⚙️ Setup & Onboarding</div>
+      <table style="width:100%;border-collapse:collapse;background:var(--surface2);border-radius:8px;overflow:hidden">
+        <thead><tr><th style="${thStyle}">Servicio</th><th style="${thStyle}">Descripción</th><th style="${thStyle}">Tipo</th><th style="${thStyle}">Precio</th></tr></thead>
+        <tbody>${setupRows}</tbody>
+      </table>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">➕ Servicios Opcionales</div>
+      <table style="width:100%;border-collapse:collapse;background:var(--surface2);border-radius:8px;overflow:hidden">
+        <thead><tr><th style="${thStyle}">Servicio</th><th style="${thStyle}">Descripción</th><th style="${thStyle}">Tipo</th><th style="${thStyle}">Precio</th></tr></thead>
+        <tbody>${opcRows}</tbody>
+      </table>
+    </div>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2)">📊 Resumen de inversión</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--surface3);border-radius:6px">
+          <span style="font-size:13px;color:var(--text2)">Pago anual recurrente</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(p.total_base)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--surface3);border-radius:6px">
+          <span style="font-size:13px;color:var(--text2)">Pago anual más servicios (sólo primer año)</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text)">${fmt(p.total_completo)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;background:var(--accent);border-radius:6px">
+          <span style="font-size:13px;color:rgba(255,255,255,.85)">Pago anual más servicios más opcionales</span>
+          <span style="font-size:14px;font-weight:700;color:#fff">${fmt(p.total_premium)}</span>
+        </div>
+      </div>
+    </div>
+
+    ${p.notas ? `<div style="margin-top:16px"><div style="font-size:12px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Condiciones y notas</div><div style="font-size:13px;color:var(--text2);white-space:pre-wrap;line-height:1.7">${esc(p.notas)}</div></div>` : ''}
+  `;
+  openModal('prop-detail-modal');
+}
+
+async function renderPropuestas() {
+  const el = document.getElementById('content');
+  el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3)">Cargando propuestas...</div>`;
+  await loadPropuestas();
+
+  const search = propuestasFiltro.toLowerCase();
+  const filtered = search
+    ? propuestasList.filter(p => (p.empresa||'').toLowerCase().includes(search))
+    : propuestasList;
+
+  const sym = p => ['USD','MXN','COP'].includes(p.moneda) ? '$' : '€';
+  const fmt = (p, n) => `${sym(p)}${parseFloat(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})} ${p.moneda}`;
+
+  const rows = filtered.length === 0
+    ? `<tr><td colspan="6" style="text-align:center;padding:48px;color:var(--text3)">Sin propuestas todavía — genera una desde el <a href="generador_propuesta_mx.html" target="_blank" style="color:var(--accent)">Generador</a></td></tr>`
+    : filtered.map(p => `
+        <tr style="cursor:pointer" onclick="openDetallePropuesta(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border)"><div style="font-weight:600;color:var(--text)">${esc(p.empresa)}</div><div style="font-size:11.5px;color:var(--text3);margin-top:2px">${fmtDateTime(p.created_at)}</div></td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text2)">${fmtDate(p.fecha)||'—'}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text2)">${esc(p.moneda)}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text);font-weight:600">${fmt(p, p.total_base)}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text);font-weight:600">${fmt(p, p.total_completo)}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;gap:6px">
+              <button onclick="event.stopPropagation();openDetallePropuesta(${JSON.stringify(p).replace(/"/g,'&quot;')})" style="background:none;border:none;cursor:pointer;padding:4px 7px;border-radius:6px;font-size:13px;color:var(--text3)" title="Ver detalle">👁</button>
+              <button onclick="event.stopPropagation();deletePropuesta('${p.id}')" style="background:none;border:none;cursor:pointer;padding:4px 7px;border-radius:6px;font-size:13px;color:var(--text3)" title="Eliminar">🗑️</button>
+            </div>
+          </td>
+        </tr>`).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+      <h2 style="font-size:17px;font-weight:700">📄 Propuestas <span style="font-size:13px;font-weight:400;color:var(--text3)">(${filtered.length})</span></h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" placeholder="🔍 Buscar empresa..." style="padding:7px 12px;font-size:13px;max-width:200px" value="${esc(propuestasFiltro)}" oninput="propuestasFiltro=this.value;renderPropuestas()"/>
+        <a href="generador_propuesta_mx.html" target="_blank" class="btn btn-primary btn-sm">＋ Nueva propuesta</a>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);overflow:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Empresa</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Fecha propuesta</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Moneda</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Pago anual recurrente</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Pago anual + servicios</th>
+            <th style="border-bottom:2px solid var(--border)"></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+</script>
+
 </body>
 </html>
 
@@ -2277,6 +2455,7 @@ async function saveMeetingNote() {
     showToast(mnEditId ? 'Nota actualizada' : 'Nota guardada', 'success');
     closeModal('mn-modal');
     await loadMeetingNotes();
+    await loadPropuestas();
     renderMeetingNotes();
   } catch(e) {
     console.error('saveMeetingNote:', e);
