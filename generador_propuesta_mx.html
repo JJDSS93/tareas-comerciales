@@ -167,7 +167,10 @@ Los precios no incluyen impuestos aplicables.</textarea>
 </div>
 
 <script>
-const SERVER_URL = 'https://web-production-5a5c4.up.railway.app';
+const SERVER_URL   = 'https://web-production-5a5c4.up.railway.app';
+const SUPABASE_URL = 'https://fwjqjrugqjbortbqfdbp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZOVDEwsNP8EVhiBnFRnnvA_MMocF7Md';
+
 const state = { lic: [], setup: [], opc: [] };
 
 function previewLogo(input) {
@@ -253,6 +256,34 @@ function setStatus(msg, type='') {
   el.className = 'status ' + type;
 }
 
+async function guardarEnSupabase(datos, totales) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/propuestas`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        empresa:        datos.empresa,
+        fecha:          datos.fecha || new Date().toISOString().split('T')[0],
+        moneda:         datos.moneda,
+        total_base:     totales.base,
+        total_completo: totales.completo,
+        total_premium:  totales.premium,
+        licencias:      datos.licencias,
+        setup:          datos.setup,
+        opcionales:     datos.opcionales,
+        notas:          datos.notas,
+      })
+    });
+  } catch(e) {
+    console.warn('No se pudo guardar en Supabase:', e);
+  }
+}
+
 async function generar() {
   const plantillaFile = document.getElementById('plantilla').files[0];
   if (!plantillaFile) { setStatus('⚠️ Sube la plantilla PPTX primero', 'err'); return; }
@@ -263,19 +294,24 @@ async function generar() {
   btn.disabled = true;
   setStatus('⏳ Generando propuesta...');
 
+  const moneda    = document.getElementById('moneda').value;
+  const licencias = state.lic.filter(r => r.nombre || r.vol || r.precio);
+  const setup     = state.setup.filter(r => r.servicio || r.precio);
+  const opcionales= state.opc.filter(r => r.servicio || r.precio);
+  const notas     = document.getElementById('notas').value;
+  const fecha     = document.getElementById('fecha').value;
+
+  const licTotal   = state.lic.reduce((s,r) => s + (parseFloat(r.vol)||0)*(parseFloat(r.precio)||0), 0);
+  const setupTotal = state.setup.reduce((s,r) => s + (parseFloat(r.precio)||0), 0);
+  const opcTotal   = state.opc.reduce((s,r) => s + (parseFloat(r.precio)||0), 0);
+
   try {
     const formData = new FormData();
     formData.append('plantilla', plantillaFile);
     const logoFile = document.getElementById('logo').files[0];
     if (logoFile) formData.append('logo', logoFile);
     formData.append('datos', JSON.stringify({
-      empresa,
-      fecha: document.getElementById('fecha').value,
-      moneda: document.getElementById('moneda').value,
-      licencias: state.lic.filter(r => r.nombre || r.vol || r.precio),
-      setup: state.setup.filter(r => r.servicio || r.precio),
-      opcionales: state.opc.filter(r => r.servicio || r.precio),
-      notas: document.getElementById('notas').value,
+      empresa, fecha, moneda, licencias, setup, opcionales, notas,
       leyenda_lic:   document.getElementById('leyenda-lic').value.trim(),
       leyenda_setup: document.getElementById('leyenda-setup').value.trim(),
       leyenda_opc:   document.getElementById('leyenda-opc').value.trim(),
@@ -298,7 +334,14 @@ async function generar() {
     a.download = `Propuesta_Emburse_${empresa.replace(/\s+/g,'_')}.pptx`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus('✅ Propuesta descargada correctamente', 'ok');
+
+    // Guardar en Supabase
+    await guardarEnSupabase(
+      { empresa, fecha, moneda, licencias, setup, opcionales, notas },
+      { base: licTotal, completo: licTotal + setupTotal, premium: licTotal + setupTotal + opcTotal }
+    );
+
+    setStatus('✅ Propuesta descargada y guardada correctamente', 'ok');
 
   } catch(e) {
     setStatus('❌ Error: ' + e.message, 'err');
