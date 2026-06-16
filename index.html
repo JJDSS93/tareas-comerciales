@@ -714,6 +714,8 @@ const SB_URL_DEFAULT = 'https://fwjqjrugqjbortbqfdbp.supabase.co';
 const SB_KEY_DEFAULT = 'sb_publishable_ZOVDEwsNP8EVhiBnFRnnvA_MMocF7Md';
 let SB_URL = localStorage.getItem('sb_url') || SB_URL_DEFAULT;
 let SB_KEY  = localStorage.getItem('sb_key')  || SB_KEY_DEFAULT;
+let currentUserId = null;
+let currentUserName = null;
 
 let state = {
   projects: [], tasks: [], tags: [], taskTags: {}, subtasks: {}, comments: {}, attachments: {},
@@ -753,33 +755,29 @@ function updateDots() {
 
 async function checkPin() {
   const entered = await simpleHash(pinBuffer);
-  // Si no hay PIN local, intentar cargarlo desde Supabase
-  if (!localStorage.getItem('pin_hash')) {
-    try {
-      const res = await fetch(SB_URL + '/rest/v1/app_config?key=eq.pin_hash&select=value', {
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-      });
-      const data = await res.json();
-      if (data && data[0] && data[0].value) {
-        localStorage.setItem('pin_hash', data[0].value);
-      } else {
-        localStorage.setItem('pin_hash', await simpleHash('1234'));
-      }
-    } catch(e) {
-      localStorage.setItem('pin_hash', await simpleHash('1234'));
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/usuarios?select=*', {
+      headers: {'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY}
+    });
+    const usuarios = await res.json();
+    const match = (usuarios||[]).find(u => u.pin_hash === entered);
+    if (match) {
+      currentUserId = match.id;
+      currentUserName = match.nombre;
+      document.getElementById('lock-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      initApp();
+    } else {
+      document.getElementById('pin-error').textContent = 'PIN incorrecto.';
+      pinBuffer = ''; updateDots();
+      setTimeout(()=>document.getElementById('pin-error').textContent='', 2000);
     }
-  }
-  const stored = localStorage.getItem('pin_hash');
-  if (entered === stored) {
-    document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    initApp();
-  } else {
-    document.getElementById('pin-error').textContent = 'PIN incorrecto. Inténtalo de nuevo.';
+  } catch(e) {
+    document.getElementById('pin-error').textContent = 'Error de conexión.';
     pinBuffer = ''; updateDots();
-    setTimeout(()=>document.getElementById('pin-error').textContent='', 2000);
   }
 }
+  
 
 // ═══════════════════════════════════════════════════
 // SUPABASE API
@@ -837,9 +835,9 @@ async function initApp() {
 async function loadAll() {
   try {
     const [projects, tasks, tags, taskTags, subtasks, comments, attachments, config] = await Promise.all([
-      sbFetch('projects?select=*&order=sort_order'),
-      sbFetch('tasks?select=*&order=sort_order'),
-      sbFetch('tags?select=*&order=name'),
+      sbFetch(`projects?select=*&user_id=eq.${currentUserId}&order=sort_order`),
+      sbFetch(`tasks?select=*&user_id=eq.${currentUserId}&order=sort_order`),
+      sbFetch(`tags?select=*&user_id=eq.${currentUserId}&order=name`),
       sbFetch('task_tags?select=*'),
       sbFetch('subtasks?select=*&order=sort_order'),
       sbFetch('comments?select=*&order=created_at'),
@@ -1448,7 +1446,8 @@ async function saveTask() {
     deadline:document.getElementById('task-deadline').value||null,
     due_time:document.getElementById('task-due-time').value||null,
     recurrence:document.getElementById('task-recurrence').value,
-    sort_order: id ? (state.tasks.find(t=>t.id===id)||{sort_order:0}).sort_order : state.tasks.length
+    sort_order: id ? (state.tasks.find(t=>t.id===id)||{sort_order:0}).sort_order : state.tasks.length,
+    user_id: currentUserId,
   };
 
   try{
@@ -1737,7 +1736,7 @@ async function saveProject() {
       await sbFetch(`projects?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({name,color}),prefer:'return=minimal'});
       const p=state.projects.find(p=>p.id===id); if(p){p.name=name;p.color=color;}
     } else {
-      const res=await sbFetch('projects',{method:'POST',body:JSON.stringify({name,color,sort_order:state.projects.length})});
+      const res=await sbFetch('projects',{method:'POST',body:JSON.stringify({name,color,user_id:currentUserId,sort_order:state.projects.length})});
       const np=Array.isArray(res)?res[0]:res; if(np) state.projects.push(np);
     }
     closeModal('project-modal');
@@ -1936,6 +1935,8 @@ function lockApp() {
   document.getElementById('lock-screen').style.display = 'flex';
   pinBuffer = ''; updateDots();
   document.getElementById('pin-error').textContent = '';
+  currentUserId = null;
+  currentUserName = null;
 }
 
 function goToTaskFilter(filter) {
@@ -1974,7 +1975,7 @@ let propuestasFiltro = '';
 
 async function loadPropuestas() {
   try {
-    const data = await sbFetch('propuestas?order=created_at.desc');
+    const data = await sbFetch(`propuestas?order=created_at.desc&user_id=eq.${currentUserId}`);
     propuestasList = Array.isArray(data) ? data : [];
   } catch(e) { propuestasList = []; }
 }
@@ -2178,7 +2179,7 @@ let noesEditId = null;
 
 async function loadNoes() {
   try {
-    noesList = await sbFetch('noes?order=retoma_date.asc');
+    noesList = await sbFetch(`noes?order=retoma_date.asc&user_id=eq.${currentUserId}`);
     if (!Array.isArray(noesList)) noesList = [];
   } catch(e) { noesList = []; }
 }
@@ -2351,7 +2352,7 @@ let mnCurrentTags = [];
 
 async function loadMeetingNotes() {
   try {
-    const data = await sbFetch('meeting_notes?order=meeting_date.desc');
+    const data = await sbFetch(`meeting_notes?order=meeting_date.desc&user_id=eq.${currentUserId}`);
     meetingNotes = Array.isArray(data) ? data : [];
   } catch(e) { meetingNotes = []; }
 }
