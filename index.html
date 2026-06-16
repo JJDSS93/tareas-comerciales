@@ -1250,11 +1250,12 @@ function renderConfig() {
         <div class="form-group mb-2"><label>Confirmar PIN</label><input type="password" id="cfg-pin-conf" placeholder="4 dígitos" maxlength="4"/></div>
         <button class="btn btn-primary btn-sm" onclick="changePin()">Cambiar mi PIN</button>
       </div>
-      <div class="config-section">
-        <h3>👥 Usuarios</h3>
-        <div id="usuarios-list" style="margin-bottom:12px">Cargando...</div>
-        <button class="btn btn-primary btn-sm" onclick="openNuevoUsuario()">＋ Nuevo usuario</button>
-      </div>
+      ${currentUserId === 'jj' ? `
+<div class="config-section">
+  <h3>👥 Usuarios</h3>
+  <div id="usuarios-list" style="margin-bottom:12px">Cargando...</div>
+  <button class="btn btn-primary btn-sm" onclick="openNuevoUsuario()">＋ Nuevo usuario</button>
+</div>` : ''}
       <div class="config-section">
         <h3>🔑 Supabase</h3>
         <div class="form-group mb-2"><label>URL</label><input type="text" id="cfg-sb-url" value="${SB_URL}"/></div>
