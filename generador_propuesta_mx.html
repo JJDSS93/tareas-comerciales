@@ -267,17 +267,18 @@ async function guardarEnSupabase(datos, totales) {
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        empresa:        datos.empresa,
-        fecha:          datos.fecha || new Date().toISOString().split('T')[0],
-        moneda:         datos.moneda,
-        total_base:     totales.base,
-        total_completo: totales.completo,
-        total_premium:  totales.premium,
-        licencias:      datos.licencias,
-        setup:          datos.setup,
-        opcionales:     datos.opcionales,
-        notas:          datos.notas,
-      })
+  empresa:        datos.empresa,
+  fecha:          datos.fecha || new Date().toISOString().split('T')[0],
+  moneda:         datos.moneda,
+  total_base:     totales.base,
+  total_completo: totales.completo,
+  total_premium:  totales.premium,
+  licencias:      datos.licencias,
+  setup:          datos.setup,
+  opcionales:     datos.opcionales,
+  notas:          datos.notas,
+  user_id:        'jj',
+ })
     });
   } catch(e) {
     console.warn('No se pudo guardar en Supabase:', e);
