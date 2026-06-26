@@ -2431,7 +2431,7 @@ async function saveMeetingNote() {
   const inputVal = document.getElementById('mn-tag-input').value.trim();
   if (inputVal) { mnAddTag(inputVal); document.getElementById('mn-tag-input').value = ''; }
   if (!title || !meeting_date) { showToast('Título y fecha son obligatorios','error'); return; }
-  const body = JSON.stringify({ title, meeting_date, content, tags: mnCurrentTags });
+  const body = JSON.stringify({ title, meeting_date, content, tags: mnCurrentTags, user_id: currentUserId });
   try {
     if (mnEditId) {
       await sbFetch(`meeting_notes?id=eq.${mnEditId}`, {method:'PATCH', body, prefer:'return=minimal'});
