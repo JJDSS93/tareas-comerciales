@@ -776,6 +776,7 @@ async function initApp() {
   await loadNoes();
   await loadMeetingNotes();
   await loadPropuestas();
+  await loadCatalogo();
   startNotifChecker();
   checkNotifications();
 }
@@ -2118,6 +2119,221 @@ async function renderPropuestas() {
 }
 </script>
 
+<!-- CATALOGO MODAL -->
+<div class="modal-overlay" id="catalogo-modal" onclick="closeModalOnOverlay(event,'catalogo-modal')">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title" id="catalogo-modal-title">➕ Nuevo producto</span>
+      <button class="modal-close" onclick="closeModal('catalogo-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cat-id"/>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Nombre *</label>
+          <input type="text" id="cat-nombre" placeholder="Nombre del producto/servicio"/>
+        </div>
+        <div class="form-group full">
+          <label>Descripción</label>
+          <textarea id="cat-descripcion" placeholder="Descripción del servicio..." style="min-height:90px"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="cat-tipo">
+            <option value="One-time">One-time</option>
+            <option value="Recurring">Recurring</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Categoría</label>
+          <select id="cat-categoria">
+            <option value="IMPLEMENTATION SERVICE">IMPLEMENTATION SERVICE</option>
+            <option value="MODULES/CONNECTORS/FEATURES">MODULES/CONNECTORS/FEATURES</option>
+            <option value="ESA">ESA</option>
+            <option value="OUT OF CATALOG">OUT OF CATALOG</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Precio (€)</label>
+          <input type="number" id="cat-precio" step="0.01" placeholder="0.00"/>
+        </div>
+        <div class="form-group">
+          <label>Horas</label>
+          <input type="number" id="cat-horas" step="0.5" placeholder="0"/>
+        </div>
+        <div class="form-group">
+          <label>Precio con descuento (20%)</label>
+          <input type="number" id="cat-precio-desc" step="0.01" placeholder="0.00"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('catalogo-modal')">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="cat-delete-btn" onclick="deleteCatalogoItem()" style="display:none;margin-right:auto">Eliminar</button>
+      <button class="btn btn-primary" onclick="saveCatalogoItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CATÁLOGO DE PRECIOS
+// ═══════════════════════════════════════════════════
+let catalogoList = [];
+let catalogoFiltro = '';
+let catalogoFiltroCategoria = '';
+
+async function loadCatalogo() {
+  try {
+    const data = await sbFetch('catalogo?select=*&order=nombre');
+    catalogoList = Array.isArray(data) ? data : [];
+  } catch(e) { catalogoList = []; }
+}
+
+function openNewCatalogoItem() {
+  document.getElementById('cat-id').value = '';
+  document.getElementById('cat-nombre').value = '';
+  document.getElementById('cat-descripcion').value = '';
+  document.getElementById('cat-tipo').value = 'One-time';
+  document.getElementById('cat-categoria').value = 'IMPLEMENTATION SERVICE';
+  document.getElementById('cat-precio').value = '';
+  document.getElementById('cat-horas').value = '';
+  document.getElementById('cat-precio-desc').value = '';
+  document.getElementById('cat-delete-btn').style.display = 'none';
+  document.getElementById('catalogo-modal-title').textContent = '➕ Nuevo producto';
+  openModal('catalogo-modal');
+}
+
+function openEditCatalogoItem(item) {
+  document.getElementById('cat-id').value = item.id;
+  document.getElementById('cat-nombre').value = item.nombre || '';
+  document.getElementById('cat-descripcion').value = item.descripcion || '';
+  document.getElementById('cat-tipo').value = item.tipo || 'One-time';
+  document.getElementById('cat-categoria').value = item.categoria || 'IMPLEMENTATION SERVICE';
+  document.getElementById('cat-precio').value = item.precio ?? '';
+  document.getElementById('cat-horas').value = item.horas ?? '';
+  document.getElementById('cat-precio-desc').value = item.precio_descuento ?? '';
+  document.getElementById('cat-delete-btn').style.display = '';
+  document.getElementById('catalogo-modal-title').textContent = '✏️ Editar producto';
+  openModal('catalogo-modal');
+}
+
+async function saveCatalogoItem() {
+  const id = document.getElementById('cat-id').value;
+  const nombre = document.getElementById('cat-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio','error'); return; }
+  const data = {
+    nombre,
+    descripcion: document.getElementById('cat-descripcion').value.trim() || null,
+    tipo: document.getElementById('cat-tipo').value,
+    categoria: document.getElementById('cat-categoria').value,
+    precio: document.getElementById('cat-precio').value ? parseFloat(document.getElementById('cat-precio').value) : null,
+    horas: document.getElementById('cat-horas').value ? parseFloat(document.getElementById('cat-horas').value) : null,
+    precio_descuento: document.getElementById('cat-precio-desc').value ? parseFloat(document.getElementById('cat-precio-desc').value) : null,
+  };
+  try {
+    if (id) {
+      await sbFetch(`catalogo?id=eq.${id}`, {method:'PATCH', body:JSON.stringify(data), prefer:'return=minimal'});
+      showToast('Producto actualizado','success');
+    } else {
+      await sbFetch('catalogo', {method:'POST', body:JSON.stringify(data)});
+      showToast('Producto creado','success');
+    }
+    closeModal('catalogo-modal');
+    await loadCatalogo();
+    renderCatalogo();
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+async function deleteCatalogoItem() {
+  const id = document.getElementById('cat-id').value;
+  if (!id) return;
+  if (!confirm('¿Eliminar este producto del catálogo?')) return;
+  try {
+    await sbFetch(`catalogo?id=eq.${id}`, {method:'DELETE'});
+    catalogoList = catalogoList.filter(c => c.id !== id);
+    closeModal('catalogo-modal');
+    showToast('Producto eliminado','success');
+    renderCatalogo();
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+function renderCatalogo() {
+  const el = document.getElementById('content');
+  const search = catalogoFiltro.toLowerCase();
+  const catFiltro = catalogoFiltroCategoria;
+
+  let filtered = catalogoList;
+  if (search) filtered = filtered.filter(c => (c.nombre||'').toLowerCase().includes(search) || (c.descripcion||'').toLowerCase().includes(search));
+  if (catFiltro) filtered = filtered.filter(c => c.categoria === catFiltro);
+
+  const categorias = [...new Set(catalogoList.map(c=>c.categoria).filter(Boolean))].sort();
+
+  const fmt = n => n==null ? '—' : `€${parseFloat(n).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+
+  const rows = filtered.length === 0
+    ? `<tr><td colspan="7" style="text-align:center;padding:48px;color:var(--text3)">Sin productos — añade el primero</td></tr>`
+    : filtered.map(c => `
+        <tr style="cursor:pointer" onclick='openEditCatalogoItem(${JSON.stringify(c).replace(/'/g,"&#39;")})'>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border)">
+            <div style="font-weight:600;color:var(--text)">${esc(c.nombre)}</div>
+            ${c.descripcion ? `<div style="font-size:11.5px;color:var(--text3);margin-top:2px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.descripcion)}</div>` : ''}
+          </td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border)"><span class="project-badge" style="background:var(--surface3);color:var(--text2)">${esc(c.categoria||'—')}</span></td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text2)">${esc(c.tipo||'—')}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text2)">${c.horas ?? '—'}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);font-weight:600">${fmt(c.precio)}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text2)">${fmt(c.precio_descuento)}</td>
+          <td style="padding:12px 14px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;gap:6px">
+              <button onclick="event.stopPropagation();deleteCatalogoItemQuick('${c.id}')" style="background:none;border:none;cursor:pointer;padding:4px 7px;border-radius:6px;font-size:13px;color:var(--text3)" title="Eliminar">🗑️</button>
+            </div>
+          </td>
+        </tr>`).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+      <h2 style="font-size:17px;font-weight:700">💰 Catálogo de Precios <span style="font-size:13px;font-weight:400;color:var(--text3)">(${filtered.length})</span></h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" placeholder="🔍 Buscar producto..." style="padding:7px 12px;font-size:13px;max-width:200px" value="${esc(catalogoFiltro)}" oninput="catalogoFiltro=this.value;renderCatalogo()"/>
+        <select style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--radius);font-family:var(--font-sans);font-size:13px" onchange="catalogoFiltroCategoria=this.value;renderCatalogo()">
+          <option value="">Todas las categorías</option>
+          ${categorias.map(c=>`<option value="${esc(c)}" ${catFiltro===c?'selected':''}>${esc(c)}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openNewCatalogoItem()">＋ Nuevo producto</button>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);overflow:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Producto</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Categoría</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Tipo</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Horas</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Precio</th>
+            <th style="text-align:left;padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);border-bottom:2px solid var(--border)">Precio -20%</th>
+            <th style="border-bottom:2px solid var(--border)"></th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+async function deleteCatalogoItemQuick(id) {
+  if (!confirm('¿Eliminar este producto del catálogo?')) return;
+  try {
+    await sbFetch(`catalogo?id=eq.${id}`, {method:'DELETE'});
+    catalogoList = catalogoList.filter(c => c.id !== id);
+    showToast('Producto eliminado','success');
+    renderCatalogo();
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+</script>
+
+  
+  
 </body>
 </html>
 
