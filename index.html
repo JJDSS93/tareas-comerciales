@@ -434,8 +434,8 @@ input[type=color]{padding:2px;height:36px;cursor:pointer}
     <div class="nav-item" onclick="navigate('week')"><span class="nav-icon">📆</span>Vista Semana</div>
     <div class="nav-item" onclick="navigate('noes')"><span class="nav-icon">❌</span>Clientes No</div>
     <div class="nav-item" onclick="navigate('meeting-notes')"><span class="nav-icon">📝</span>Notas de Reunión</div>
-    <div class="nav-item" onclick="navigate('propuestas')"><span class="nav-icon">📄</span>Propuestas</div>
     <div class="nav-item" onclick="navigate('catalogo')"><span class="nav-icon">💰</span>Catálogo</div>
+    <div class="nav-item" onclick="navigate('propuestas')"><span class="nav-icon">📄</span>Propuestas</div>
 
     <div class="projects-header">
       <span>Proyectos</span>
@@ -851,8 +851,8 @@ function navigate(view, projectId=null) {
   else if (view === 'week') document.querySelectorAll('.nav-item')[3].classList.add('active');
   else if (view === 'noes') document.querySelectorAll('.nav-item')[4].classList.add('active');
   else if (view === 'meeting-notes') document.querySelectorAll('.nav-item')[5].classList.add('active');
-  else if (view === 'propuestas') document.querySelectorAll('.nav-item')[6].classList.add('active');
-  else if (view === 'catalogo') document.querySelectorAll('.nav-item')[7].classList.add('active');
+else if (view === 'catalogo') document.querySelectorAll('.nav-item')[6].classList.add('active');
+else if (view === 'propuestas') document.querySelectorAll('.nav-item')[7].classList.add('active');
   else if (view === 'project' && projectId) {
     document.querySelectorAll('.project-item').forEach(el => {
       if (el.dataset.id === projectId) el.classList.add('active');
