@@ -410,12 +410,101 @@ async function generar() {
   }
 }
 
+// ═══════════════════════════════════════════════════
+// CARGAR PROPUESTA EXISTENTE PARA EDITAR (?edit=ID)
+// ═══════════════════════════════════════════════════
+let editandoId = null;
+
+async function cargarPropuestaParaEditar(id) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/propuestas?id=eq.${id}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    const data = await res.json();
+    const p = Array.isArray(data) ? data[0] : data;
+    if (!p) { setStatus('⚠️ No se encontró la propuesta', 'err'); return; }
+
+    editandoId = p.id;
+
+    document.getElementById('empresa').value = p.empresa || '';
+    document.getElementById('fecha').value = p.fecha || '';
+    document.getElementById('moneda').value = p.moneda || 'USD';
+    document.getElementById('notas').value = p.notas || '';
+
+    // Limpiar tablas por defecto antes de rellenar
+    ['lic','setup','opc'].forEach(type => {
+      document.getElementById(type + '-body').innerHTML = '';
+      state[type] = [];
+    });
+
+    (p.licencias || []).forEach(item => {
+      addRow('lic');
+      const row = state.lic[state.lic.length - 1];
+      row.nombre = item.nombre || '';
+      row.vol = item.vol || '';
+      row.precio = item.precio || '';
+      document.getElementById('nombre-' + row.id).value = row.nombre;
+      document.getElementById('vol-' + row.id).value = row.vol;
+      document.getElementById('precio-' + row.id).value = row.precio;
+      calcTotal(document.getElementById('precio-' + row.id));
+    });
+    if ((p.licencias||[]).length === 0) addRow('lic');
+
+    (p.setup || []).forEach(item => {
+      addRow('setup');
+      const row = state.setup[state.setup.length - 1];
+      row.servicio = item.servicio || '';
+      row.descripcion = item.descripcion || '';
+      row.tipo = item.tipo || '';
+      row.precio = item.precio || '';
+      document.getElementById('servicio-' + row.id).value = row.servicio;
+      document.getElementById('descripcion-' + row.id).value = row.descripcion;
+      document.getElementById('tipo-' + row.id).value = row.tipo;
+      document.getElementById('precio-' + row.id).value = row.precio;
+    });
+    if ((p.setup||[]).length === 0) addRow('setup');
+
+    (p.opcionales || []).forEach(item => {
+      addRow('opc');
+      const row = state.opc[state.opc.length - 1];
+      row.servicio = item.servicio || '';
+      row.descripcion = item.descripcion || '';
+      row.tipo = item.tipo || '';
+      row.precio = item.precio || '';
+      document.getElementById('servicio-' + row.id).value = row.servicio;
+      document.getElementById('descripcion-' + row.id).value = row.descripcion;
+      document.getElementById('tipo-' + row.id).value = row.tipo;
+      document.getElementById('precio-' + row.id).value = row.precio;
+    });
+    if ((p.opcionales||[]).length === 0) addRow('opc');
+
+    if (p.leyenda_lic) document.getElementById('leyenda-lic').value = p.leyenda_lic;
+    if (p.leyenda_setup) document.getElementById('leyenda-setup').value = p.leyenda_setup;
+    if (p.leyenda_opc) document.getElementById('leyenda-opc').value = p.leyenda_opc;
+
+    recalc();
+    document.querySelector('header span').textContent = '✏️ Editando propuesta: ' + p.empresa;
+    setStatus('📝 Datos cargados — sube la plantilla y vuelve a generar', 'ok');
+
+  } catch(e) {
+    console.error(e);
+    setStatus('❌ Error al cargar la propuesta', 'err');
+  }
+}
+
+ 
 (async () => {
   await loadCatalogo();
-  addRow('lic');
-  addRow('setup');
-  addRow('opc');
-  document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+  const params = new URLSearchParams(window.location.search);
+  const editId = params.get('edit');
+  if (editId) {
+    await cargarPropuestaParaEditar(editId);
+  } else {
+    addRow('lic');
+    addRow('setup');
+    addRow('opc');
+    document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+  }
 })();
 </script>
 </body>
