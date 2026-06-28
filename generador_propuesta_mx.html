@@ -278,11 +278,9 @@ function applyCatalogo(type, id, catId) {
     calcTotal(document.getElementById('precio-'+id));
   } else {
     document.getElementById('servicio-'+id).value = item.nombre;
-    document.getElementById('descripcion-'+id).value = item.descripcion || '';
     document.getElementById('tipo-'+id).value = item.tipo || '';
     document.getElementById('precio-'+id).value = item.precio || '';
     update(type, id, 'servicio', item.nombre);
-    update(type, id, 'descripcion', item.descripcion || '');
     update(type, id, 'tipo', item.tipo || '');
     update(type, id, 'precio', item.precio || '');
   }
