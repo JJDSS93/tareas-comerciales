@@ -172,6 +172,22 @@ const SUPABASE_URL = 'https://fwjqjrugqjbortbqfdbp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZOVDEwsNP8EVhiBnFRnnvA_MMocF7Md';
 
 const state = { lic: [], setup: [], opc: [] };
+ 
+let catalogo = [];
+
+async function loadCatalogo() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/catalogo?select=*&order=nombre`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    catalogo = await res.json();
+  } catch(e) { catalogo = []; }
+}
+
+function catalogoOptions() {
+  return '<option value="">— Elegir del catálogo (opcional) —</option>' +
+    catalogo.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+}
 
 function previewLogo(input) {
   const wrap = document.getElementById('logo-preview-wrap');
@@ -210,24 +226,67 @@ function addRow(type) {
   const tbody = document.getElementById(type + '-body');
   const tr = document.createElement('tr');
   const id = Date.now() + Math.random();
+  const selId = 'cat-sel-' + id;
+
   if (type === 'lic') {
     tr.innerHTML = `
-      <td><input placeholder="Corporate" oninput="update('lic',${id},'nombre',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
-      <td><input type="number" placeholder="50" style="width:70px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('lic',${id},'vol',this.value);calcTotal(this);recalc()"/></td>
-      <td><input type="number" placeholder="55" step="0.01" style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('lic',${id},'precio',this.value);calcTotal(this);recalc()"/></td>
+      <td colspan="5" style="padding-bottom:4px">
+        <select id="${selId}" onchange="applyCatalogo('lic',${id},this.value)" style="width:100%;padding:6px 8px;border:1px dashed #1e6db5;border-radius:6px;background:#f0f6ff;font-size:12px;color:#1e6db5">
+          ${catalogoOptions()}
+        </select>
+      </td>`;
+    const tr2 = document.createElement('tr');
+    tr2.innerHTML = `
+      <td><input id="nombre-${id}" placeholder="Corporate" oninput="update('lic',${id},'nombre',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
+      <td><input id="vol-${id}" type="number" placeholder="50" style="width:70px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('lic',${id},'vol',this.value);calcTotal(this);recalc()"/></td>
+      <td><input id="precio-${id}" type="number" placeholder="55" step="0.01" style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('lic',${id},'precio',this.value);calcTotal(this);recalc()"/></td>
       <td><input id="tot-${id}" readonly style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f0f4f8;font-size:13px"/></td>
-      <td><button class="btn-del" onclick="delRow('lic',${id},this)">×</button></td>`;
+      <td><button class="btn-del" onclick="delRow('lic',${id},this,true)">×</button></td>`;
     state.lic.push({id, nombre:'', vol:'', precio:''});
+    tbody.appendChild(tr);
+    tbody.appendChild(tr2);
+    return;
   } else {
     tr.innerHTML = `
-      <td><input placeholder="${type==='setup'?'Setup inicial':'Emburse Book'}" oninput="update('${type}',${id},'servicio',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
-      <td><input placeholder="Descripción" oninput="update('${type}',${id},'descripcion',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
-      <td><input placeholder="${type==='setup'?'Único':'Anual'}" style="width:75px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('${type}',${id},'tipo',this.value)"/></td>
-      <td><input type="number" placeholder="0" step="0.01" style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('${type}',${id},'precio',this.value);recalc()"/></td>
-      <td><button class="btn-del" onclick="delRow('${type}',${id},this)">×</button></td>`;
+      <td colspan="5" style="padding-bottom:4px">
+        <select id="${selId}" onchange="applyCatalogo('${type}',${id},this.value)" style="width:100%;padding:6px 8px;border:1px dashed #1e6db5;border-radius:6px;background:#f0f6ff;font-size:12px;color:#1e6db5">
+          ${catalogoOptions()}
+        </select>
+      </td>`;
+    const tr2 = document.createElement('tr');
+    tr2.innerHTML = `
+      <td><input id="servicio-${id}" placeholder="${type==='setup'?'Setup inicial':'Emburse Book'}" oninput="update('${type}',${id},'servicio',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
+      <td><input id="descripcion-${id}" placeholder="Descripción" oninput="update('${type}',${id},'descripcion',this.value)" style="width:100%;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px"/></td>
+      <td><input id="tipo-${id}" placeholder="${type==='setup'?'Único':'Anual'}" style="width:75px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('${type}',${id},'tipo',this.value)"/></td>
+      <td><input id="precio-${id}" type="number" placeholder="0" step="0.01" style="width:90px;padding:6px 8px;border:1px solid #dde3ec;border-radius:6px;background:#f8fafc;font-size:13px" oninput="update('${type}',${id},'precio',this.value);recalc()"/></td>
+      <td><button class="btn-del" onclick="delRow('${type}',${id},this,true)">×</button></td>`;
     state[type].push({id, servicio:'', descripcion:'', tipo:'', precio:''});
+    tbody.appendChild(tr);
+    tbody.appendChild(tr2);
+    return;
   }
-  tbody.appendChild(tr);
+}
+
+function applyCatalogo(type, id, catId) {
+  const item = catalogo.find(c => c.id === catId);
+  if (!item) return;
+  if (type === 'lic') {
+    document.getElementById('nombre-'+id).value = item.nombre;
+    document.getElementById('precio-'+id).value = item.precio || '';
+    update('lic', id, 'nombre', item.nombre);
+    update('lic', id, 'precio', item.precio || '');
+    calcTotal(document.getElementById('precio-'+id));
+  } else {
+    document.getElementById('servicio-'+id).value = item.nombre;
+    document.getElementById('descripcion-'+id).value = item.descripcion || '';
+    document.getElementById('tipo-'+id).value = item.tipo || '';
+    document.getElementById('precio-'+id).value = item.precio || '';
+    update(type, id, 'servicio', item.nombre);
+    update(type, id, 'descripcion', item.descripcion || '');
+    update(type, id, 'tipo', item.tipo || '');
+    update(type, id, 'precio', item.precio || '');
+  }
+  recalc();
 }
 
 function update(type, id, field, val) {
@@ -235,9 +294,11 @@ function update(type, id, field, val) {
   if (row) row[field] = val;
 }
 
-function delRow(type, id, btn) {
+function delRow(type, id, btn, hasSelector) {
   state[type] = state[type].filter(r => r.id !== id);
-  btn.closest('tr').remove();
+  const tr = btn.closest('tr');
+  if (hasSelector && tr.previousElementSibling) tr.previousElementSibling.remove();
+  tr.remove();
   recalc();
 }
 
@@ -351,10 +412,13 @@ async function generar() {
   }
 }
 
-addRow('lic');
-addRow('setup');
-addRow('opc');
-document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+(async () => {
+  await loadCatalogo();
+  addRow('lic');
+  addRow('setup');
+  addRow('opc');
+  document.getElementById('fecha').value = new Date().toISOString().split('T')[0];
+})();
 </script>
 </body>
 </html>
