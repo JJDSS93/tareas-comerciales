@@ -437,6 +437,7 @@ input[type=color]{padding:2px;height:36px;cursor:pointer}
     <div class="nav-item" onclick="navigate('catalogo')"><span class="nav-icon">💰</span>Catálogo</div>
     <div class="nav-item" onclick="navigate('propuestas')"><span class="nav-icon">📄</span>Propuestas</div>
     <div class="nav-item" onclick="navigate('biblioteca')"><span class="nav-icon">📚</span>Biblioteca</div>
+    <div class="nav-item" onclick="navigate('asistente')"><span class="nav-icon">🤖</span>Asistente</div>
 
     <div class="projects-header">
       <span>Proyectos</span>
@@ -855,13 +856,14 @@ function navigate(view, projectId=null) {
 else if (view === 'catalogo') document.querySelectorAll('.nav-item')[6].classList.add('active');
 else if (view === 'propuestas') document.querySelectorAll('.nav-item')[7].classList.add('active');
 else if (view === 'biblioteca') document.querySelectorAll('.nav-item')[8].classList.add('active');
+else if (view === 'asistente') document.querySelectorAll('.nav-item')[9].classList.add('active');
   else if (view === 'project' && projectId) {
     document.querySelectorAll('.project-item').forEach(el => {
       if (el.dataset.id === projectId) el.classList.add('active');
     });
   }
 
-  const titles = {dashboard:'Dashboard',tasks:'Todas las Tareas',calendar:'Calendario',week:'Vista Semanal',noes:'Clientes — No por ahora','meeting-notes':'Notas de Reunión',propuestas:'Propuestas',catalogo:'Catálogo de Precios',biblioteca:'Biblioteca',config:'Configuración',search:'Resultados de búsqueda',project: (state.projects.find(p=>p.id===projectId)||{name:'Proyecto'}).name};
+  const titles = {dashboard:'Dashboard',tasks:'Todas las Tareas',calendar:'Calendario',week:'Vista Semanal',noes:'Clientes — No por ahora','meeting-notes':'Notas de Reunión',propuestas:'Propuestas',catalogo:'Catálogo de Precios',biblioteca:'Biblioteca',asistente:'Asistente comercial',config:'Configuración',search:'Resultados de búsqueda',project: (state.projects.find(p=>p.id===projectId)||{name:'Proyecto'}).name};
   document.getElementById('topbar-title').textContent = titles[view] || view;
 
   renderView();
@@ -882,6 +884,7 @@ function renderView() {
   else if (v==='propuestas') renderPropuestas();
   else if (v==='catalogo') renderCatalogo();
   else if (v==='biblioteca') renderBiblioteca();
+  else if (v==='asistente') renderAsistente();
 }
 
 // ═══════════════════════════════════════════════════
@@ -2867,6 +2870,135 @@ async function deleteBibliotecaDoc(id) {
     showToast('Archivo eliminado', 'success');
     renderBiblioteca();
   } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════
+// ASISTENTE LOCAL (sin servicios externos)
+// ═══════════════════════════════════════════════════
+let assistantConversation = [];
+
+function assistantNormalize(value='') {
+  return String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function assistantTerms(question) {
+  const ignored = new Set(['que','qué','como','cómo','para','por','con','del','las','los','una','uno','unos','unas','este','esta','estos','estas','tiene','tienen','quiero','necesito','dime','cual','cuál','cuanto','cuánto','precio','precios','producto','productos','servicio','servicios','sobre','desde','hasta','ver','muestrame','muestranos','hay','son','es']);
+  return [...new Set(assistantNormalize(question).match(/[a-z0-9]+/g)?.filter(word => word.length > 2 && !ignored.has(word)) || [])];
+}
+
+function assistantScore(item, terms) {
+  const text = assistantNormalize(`${item.nombre || item.file_name || ''} ${item.descripcion || ''} ${item.categoria || item.category || ''} ${item.tipo || ''}`);
+  return terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0);
+}
+
+function assistantPrice(value) {
+  return value == null ? '—' : `€${Number(value).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+}
+
+async function assistantReply(question) {
+  await Promise.all([
+    loadCatalogo(),
+    loadBiblioteca().catch(() => { bibliotecaDocs = []; })
+  ]);
+
+  const normalized = assistantNormalize(question);
+  const terms = assistantTerms(question);
+  const asksDiscount = /descuento|rebaja|20/.test(normalized);
+  const asksPrice = /precio|cuanto|cuánto|coste|costo|vale|cuesta/.test(normalized);
+  const asksCategories = /categoria|categoría|familia|tipo/.test(normalized) && !terms.length;
+  const catalogMatches = catalogoList
+    .map(item => ({ item, score: assistantScore(item, terms) }))
+    .filter(result => !terms.length || result.score > 0)
+    .sort((a,b) => b.score - a.score || String(a.item.nombre || '').localeCompare(String(b.item.nombre || '')))
+    .map(result => result.item);
+  let documentMatches = bibliotecaDocs
+    .map(item => ({ item, score: assistantScore(item, terms) }))
+    .filter(result => terms.length && result.score > 0)
+    .sort((a,b) => b.score - a.score)
+    .slice(0,4)
+    .map(result => result.item);
+  const asksDocuments = /document|archivo|presentacion|presentación|flyer|biblioteca/.test(normalized);
+  if (asksDocuments && !documentMatches.length) documentMatches = bibliotecaDocs.slice(0,4);
+
+  let products = catalogMatches;
+  let intro = '';
+  if (asksDiscount) {
+    products = products.filter(item => item.precio_descuento != null);
+    intro = products.length ? 'Estos productos tienen precio con descuento:' : 'No he encontrado productos con descuento que coincidan.';
+  } else if (asksCategories) {
+    const categories = [...new Set(catalogoList.map(item => item.categoria).filter(Boolean))].sort();
+    intro = categories.length ? `Categorías disponibles: ${categories.join(' · ')}` : 'Aún no hay categorías en el catálogo.';
+    products = [];
+  } else if (asksPrice && products.length === 1) {
+    const item = products[0];
+    intro = `${item.nombre}: precio ${assistantPrice(item.precio)}${item.precio_descuento != null ? ` · con descuento ${assistantPrice(item.precio_descuento)}` : ''}${item.horas != null ? ` · ${item.horas} h` : ''}.`;
+    products = [];
+  } else if (products.length) {
+    intro = asksPrice ? 'He encontrado estos precios:' : 'He encontrado estos productos en el catálogo:';
+  } else if (terms.length) {
+    intro = 'No he encontrado coincidencias exactas en el catálogo.';
+  } else {
+    products = catalogoList.slice(0,6);
+    intro = products.length ? 'Estos son algunos productos del catálogo:' : 'Todavía no hay productos en el catálogo.';
+  }
+
+  return { intro, products: products.slice(0,6), documents: documentMatches };
+}
+
+function renderAssistantCards(reply) {
+  const products = reply.products.map(item => `
+    <div class="card card-sm" style="padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <div><div style="font-size:13px;font-weight:650">${esc(item.nombre || 'Producto')}</div><div style="font-size:12px;color:var(--text3);margin-top:3px">${esc(item.categoria || 'Sin categoría')} · ${assistantPrice(item.precio)}${item.precio_descuento != null ? ` · Desc. ${assistantPrice(item.precio_descuento)}` : ''}</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="navigate('catalogo')">Ver</button>
+    </div>`).join('');
+  const documents = reply.documents.map(item => `
+    <div class="card card-sm" style="padding:12px;display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <div style="min-width:0"><div style="font-size:13px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${esc(item.file_name)}</div><div style="font-size:12px;color:var(--text3);margin-top:3px">${esc(bibliotecaCategories[item.category] || 'Documentación')}${item.description ? ` · ${esc(item.description)}` : ''}</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="openBibliotecaDoc('${item.id}')">Abrir</button>
+    </div>`).join('');
+  return `${products ? `<div style="display:grid;gap:8px;margin-top:12px">${products}</div>` : ''}${documents ? `<div style="font-size:12px;color:var(--text3);margin:16px 0 7px">Documentos relacionados</div><div style="display:grid;gap:8px">${documents}</div>` : ''}`;
+}
+
+async function askAssistant(question) {
+  const cleanQuestion = question.trim();
+  if (!cleanQuestion) return;
+  assistantConversation.push({ question: cleanQuestion, loading: true });
+  renderAsistente();
+  try {
+    const reply = await assistantReply(cleanQuestion);
+    assistantConversation[assistantConversation.length - 1] = { question: cleanQuestion, reply };
+  } catch (error) {
+    assistantConversation[assistantConversation.length - 1] = { question: cleanQuestion, error: 'No he podido consultar los datos. Inténtalo de nuevo.' };
+  }
+  renderAsistente();
+}
+
+function renderAsistente() {
+  const content = document.getElementById('content');
+  const history = assistantConversation.length ? assistantConversation.map(entry => `
+    <div style="margin:0 0 18px">
+      <div style="margin-left:auto;max-width:78%;background:var(--accent);color:white;border-radius:14px 14px 3px 14px;padding:10px 13px;font-size:13.5px">${esc(entry.question)}</div>
+      <div class="card card-sm" style="margin-top:8px;max-width:88%;padding:13px 14px">
+        ${entry.loading ? '<span style="font-size:13px;color:var(--text3)">Buscando en tu CRM…</span>' : entry.error ? `<span style="font-size:13px;color:var(--red)">${esc(entry.error)}</span>` : `<div style="font-size:13.5px;line-height:1.55">${esc(entry.reply.intro)}</div>${renderAssistantCards(entry.reply)}`}
+      </div>
+    </div>`).join('') : `
+      <div class="empty-state" style="padding:42px 20px"><div class="icon">🤖</div><div class="msg" style="font-size:15px;color:var(--text)">Consulta tu catálogo y tu Biblioteca</div><div style="font-size:13px;color:var(--text3);margin-top:7px">Este asistente funciona dentro del CRM y no envía información fuera.</div></div>`;
+  content.innerHTML = `
+    <div style="max-width:850px;margin:0 auto">
+      <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:700">🤖 Asistente comercial</h2><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Consulta local del catálogo y los documentos de Biblioteca</div></div>
+      <div style="min-height:260px">${history}</div>
+      <div class="card card-sm" style="margin-top:12px;padding:10px;display:flex;gap:8px;align-items:flex-end">
+        <textarea id="assistant-question" rows="2" placeholder="Ej.: ¿Qué productos tienen descuento?" style="flex:1;resize:none;padding:9px 11px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();askAssistant(this.value)}"></textarea>
+        <button class="btn btn-primary" onclick="askAssistant(document.getElementById('assistant-question').value)">Preguntar</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">
+        <button class="btn btn-secondary btn-sm" onclick="askAssistant('¿Qué productos tienen descuento?')">Productos con descuento</button>
+        <button class="btn btn-secondary btn-sm" onclick="askAssistant('Muéstrame los precios')">Ver precios</button>
+        <button class="btn btn-secondary btn-sm" onclick="askAssistant('¿Qué documentos tengo sobre productos?')">Buscar documentos</button>
+      </div>
+    </div>`;
 }
 </script>
 
