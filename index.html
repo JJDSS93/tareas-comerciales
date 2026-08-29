@@ -436,6 +436,7 @@ input[type=color]{padding:2px;height:36px;cursor:pointer}
     <div class="nav-item" onclick="navigate('meeting-notes')"><span class="nav-icon">📝</span>Notas de Reunión</div>
     <div class="nav-item" onclick="navigate('catalogo')"><span class="nav-icon">💰</span>Catálogo</div>
     <div class="nav-item" onclick="navigate('propuestas')"><span class="nav-icon">📄</span>Propuestas</div>
+    <div class="nav-item" onclick="navigate('biblioteca')"><span class="nav-icon">📚</span>Biblioteca</div>
 
     <div class="projects-header">
       <span>Proyectos</span>
@@ -853,13 +854,14 @@ function navigate(view, projectId=null) {
   else if (view === 'meeting-notes') document.querySelectorAll('.nav-item')[5].classList.add('active');
 else if (view === 'catalogo') document.querySelectorAll('.nav-item')[6].classList.add('active');
 else if (view === 'propuestas') document.querySelectorAll('.nav-item')[7].classList.add('active');
+else if (view === 'biblioteca') document.querySelectorAll('.nav-item')[8].classList.add('active');
   else if (view === 'project' && projectId) {
     document.querySelectorAll('.project-item').forEach(el => {
       if (el.dataset.id === projectId) el.classList.add('active');
     });
   }
 
-  const titles = {dashboard:'Dashboard',tasks:'Todas las Tareas',calendar:'Calendario',week:'Vista Semanal',noes:'Clientes — No por ahora','meeting-notes':'Notas de Reunión',propuestas:'Propuestas',catalogo:'Catálogo de Precios',config:'Configuración',search:'Resultados de búsqueda',project: (state.projects.find(p=>p.id===projectId)||{name:'Proyecto'}).name};
+  const titles = {dashboard:'Dashboard',tasks:'Todas las Tareas',calendar:'Calendario',week:'Vista Semanal',noes:'Clientes — No por ahora','meeting-notes':'Notas de Reunión',propuestas:'Propuestas',catalogo:'Catálogo de Precios',biblioteca:'Biblioteca',config:'Configuración',search:'Resultados de búsqueda',project: (state.projects.find(p=>p.id===projectId)||{name:'Proyecto'}).name};
   document.getElementById('topbar-title').textContent = titles[view] || view;
 
   renderView();
@@ -879,6 +881,7 @@ function renderView() {
   else if (v==='meeting-notes') renderMeetingNotes();
   else if (v==='propuestas') renderPropuestas();
   else if (v==='catalogo') renderCatalogo();
+  else if (v==='biblioteca') renderBiblioteca();
 }
 
 // ═══════════════════════════════════════════════════
@@ -2742,6 +2745,128 @@ function clearMnFilters() {
     });
     renderMeetingNotes();
   }, 0);
+}
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════
+// BIBLIOTECA DOCUMENTAL
+// ═══════════════════════════════════════════════════
+let bibliotecaDocs = [];
+let bibliotecaSearch = '';
+let bibliotecaCategory = '';
+
+const bibliotecaCategories = {
+  clientes: 'Clientes',
+  eventos: 'Eventos',
+  'listas-difusion': 'Listas de difusión',
+  presentaciones: 'Presentaciones',
+  flyers: 'Flyers',
+  documentacion: 'Documentación'
+};
+
+function storagePathEncode(path) {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+async function loadBiblioteca() {
+  const data = await sbFetch(`library_documents?select=*&user_id=eq.${currentUserId}&order=created_at.desc`);
+  bibliotecaDocs = Array.isArray(data) ? data : [];
+}
+
+async function renderBiblioteca() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div style="text-align:center;padding:48px;color:var(--text3)">Cargando biblioteca...</div>';
+  try {
+    await loadBiblioteca();
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><div class="msg">No se pudo cargar la biblioteca. Comprueba que has ejecutado la configuración de biblioteca.</div></div>';
+    return;
+  }
+
+  const term = bibliotecaSearch.toLowerCase().trim();
+  const visible = bibliotecaDocs.filter(d => {
+    const matchesCategory = !bibliotecaCategory || d.category === bibliotecaCategory;
+    const haystack = `${d.file_name || ''} ${d.description || ''} ${d.category || ''}`.toLowerCase();
+    return matchesCategory && (!term || haystack.includes(term));
+  });
+  const categoryOptions = Object.entries(bibliotecaCategories)
+    .map(([id, label]) => `<option value="${id}" ${bibliotecaCategory===id?'selected':''}>${label}</option>`).join('');
+  const cards = visible.length ? visible.map(d => {
+    const ext = (d.file_name || '').split('.').pop().toUpperCase();
+    const size = d.size_bytes ? `${(d.size_bytes / 1024 / 1024).toFixed(d.size_bytes < 1024*1024 ? 2 : 1)} MB` : '';
+    return `<div class="card card-sm" style="display:flex;align-items:center;gap:12px;min-width:0">
+      <div style="width:38px;height:38px;border-radius:10px;background:var(--accent-glow);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:11px;font-weight:700;flex-shrink:0">${esc(ext)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.file_name)}</div>
+        <div style="font-size:11.5px;color:var(--text3);margin-top:3px">${esc(bibliotecaCategories[d.category] || 'Documentación')}${size ? ' · '+size : ''}</div>
+        ${d.description ? `<div style="font-size:12px;color:var(--text2);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.description)}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:4px"><button class="btn-icon" onclick="openBibliotecaDoc('${d.id}')" title="Abrir">↗</button><button class="btn-icon" onclick="deleteBibliotecaDoc('${d.id}')" title="Eliminar" style="color:var(--text3)">🗑️</button></div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><div class="icon">📚</div><div class="msg">Todavía no hay documentos en esta carpeta</div></div>';
+
+  content.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+      <div><h2 style="font-size:18px;font-weight:700">📚 Biblioteca</h2><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Documentos comerciales y material de referencia</div></div>
+      <label class="btn btn-primary" style="cursor:pointer"><input type="file" id="biblioteca-file" style="display:none" onchange="uploadBibliotecaDoc(this)"/>＋ Subir archivo</label>
+    </div>
+    <div class="card card-sm" style="margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(170px,220px);gap:10px">
+        <input type="text" placeholder="🔍 Buscar documentos..." value="${esc(bibliotecaSearch)}" oninput="bibliotecaSearch=this.value;renderBiblioteca()"/>
+        <select onchange="bibliotecaCategory=this.value;renderBiblioteca()"><option value="">Todas las carpetas</option>${categoryOptions}</select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px">${cards}</div>`;
+}
+
+async function uploadBibliotecaDoc(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const category = prompt('Carpeta: clientes, eventos, listas-difusion, presentaciones, flyers o documentacion', 'documentacion');
+  if (!category) return;
+  if (!bibliotecaCategories[category]) { showToast('Carpeta no válida', 'error'); return; }
+  const description = prompt('Descripción opcional del archivo:', '') || '';
+  if (file.size > 50 * 1024 * 1024) { showToast('El archivo supera el límite de 50 MB', 'error'); return; }
+  const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${category}/${currentUserId}/${Date.now()}_${cleanName}`;
+  try {
+    showToast('Subiendo archivo...', 'success');
+    const response = await fetch(`${SB_URL}/storage/v1/object/crm-library/${storagePathEncode(storagePath)}`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': file.type || 'application/octet-stream' },
+      body: file
+    });
+    if (!response.ok) throw new Error('No se pudo subir el archivo');
+    await sbFetch('library_documents', { method:'POST', body:JSON.stringify({ user_id:currentUserId, category, file_name:file.name, storage_path:storagePath, mime_type:file.type || null, size_bytes:file.size, description }) });
+    showToast('Archivo subido', 'success');
+    renderBiblioteca();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+  finally { input.value = ''; }
+}
+
+async function openBibliotecaDoc(id) {
+  const doc = bibliotecaDocs.find(d => d.id === id);
+  if (!doc) return;
+  try {
+    const response = await fetch(`${SB_URL}/storage/v1/object/authenticated/crm-library/${storagePathEncode(doc.storage_path)}`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (!response.ok) throw new Error('No se pudo abrir el archivo');
+    const url = URL.createObjectURL(await response.blob());
+    window.open(url, '_blank', 'noopener');
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteBibliotecaDoc(id) {
+  const doc = bibliotecaDocs.find(d => d.id === id);
+  if (!doc || !confirm(`¿Eliminar “${doc.file_name}”?`)) return;
+  try {
+    await sbFetch(`library_documents?id=eq.${id}`, { method:'DELETE' });
+    await fetch(`${SB_URL}/storage/v1/object/crm-library/${storagePathEncode(doc.storage_path)}`, { method:'DELETE', headers:{ 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY } });
+    showToast('Archivo eliminado', 'success');
+    renderBiblioteca();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 </script>
 
